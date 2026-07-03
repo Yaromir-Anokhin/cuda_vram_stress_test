@@ -45,12 +45,13 @@ def parse_args():
 
 args = parse_args()
 
+# Global variables for analytics and plotting telemetry
 max_temp_tracked = 0
 has_nvml = False
 nvml_handle = None
 time_telemetry = []
 temp_telemetry = []
-current_allocated_gb = 0.0  # Глобальная переменная для корректного подсчета очков
+current_allocated_gb = 0.0  # Tracked globally for precise benchmark scoring
 
 def log_message(message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -110,14 +111,15 @@ def generate_plot():
         plt.close()
         log_message(f"Telemetry graph successfully generated and saved to: {args.plot_file}")
         
+        # Automatically open the chart image file upon completion
         if not args.no_open:
             try:
                 if sys.platform == "win32":
                     os.startfile(args.plot_file)
-                elif sys.platform == "darwin":
+                elif sys.platform == "darwin":  # macOS
                     import subprocess
                     subprocess.Popen(["open", args.plot_file])
-                else:
+                else:  # Linux
                     import subprocess
                     subprocess.Popen(["xdg-open", args.plot_file])
                 log_message("Automatically opening the temperature plot chart.")
@@ -134,7 +136,7 @@ def print_final_report(status, cycles_done, elapsed_time, reason=""):
     minutes = total_seconds // 60
     seconds = total_seconds % 60
     
-    # Рассчитываем фирменные баллы производительности VRAM
+    # Calculate the custom proprietary VRAM performance score index
     if status in ["SUCCESS / STABLE", "STOPPED"] and total_seconds > 0:
         score = int((current_allocated_gb * cycles_done) / elapsed_time * 1000)
     else:
@@ -271,6 +273,7 @@ def main():
             current_temp_str = get_gpu_temp()
             log_message(f"[Cycle {cycle}] Running matrix calculations... Temp: {current_temp_str}")
             
+            # Record data points for telemetry plotting
             raw_temp = get_gpu_temp_raw()
             if raw_temp is not None:
                 time_telemetry.append(elapsed)
