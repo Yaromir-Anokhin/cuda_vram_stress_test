@@ -45,23 +45,23 @@ def parse_args():
 
 args = parse_args()
 
-# Global variables for analytics and plotting telemetry
 max_temp_tracked = 0
 has_nvml = False
 nvml_handle = None
 time_telemetry = []
 temp_telemetry = []
-current_allocated_gb = 0.0  # Tracked globally for precise benchmark scoring
+current_allocated_gb = 0.0
 
-def log_message(message):
+def log_message(message, force_flush=False):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     formatted_msg = f"[{timestamp}] {message}"
     print(formatted_msg)
     try:
         with open(args.log_file, "a", encoding="utf-8") as f:
             f.write(formatted_msg + "\n")
-            f.flush()
-            os.fsync(f.fileno())
+            if force_flush:
+                f.flush()
+                os.fsync(f.fileno())
     except IOError:
         pass
 
@@ -109,67 +109,65 @@ def generate_plot():
         
         plt.savefig(args.plot_file, dpi=150, bbox_inches='tight')
         plt.close()
-        log_message(f"Telemetry graph successfully generated and saved to: {args.plot_file}")
+        log_message(f"Telemetry graph successfully generated and saved to: {args.plot_file}", force_flush=True)
         
-        # Automatically open the chart image file upon completion
         if not args.no_open:
             try:
                 if sys.platform == "win32":
                     os.startfile(args.plot_file)
-                elif sys.platform == "darwin":  # macOS
+                elif sys.platform == "darwin":
                     import subprocess
                     subprocess.Popen(["open", args.plot_file])
-                else:  # Linux
+                else:
                     import subprocess
                     subprocess.Popen(["xdg-open", args.plot_file])
-                log_message("Automatically opening the temperature plot chart.")
+                log_message("Automatically opening the temperature plot chart.", force_flush=True)
             except Exception as os_err:
-                log_message(f"[WARNING] Could not automatically open chart file: {str(os_err)}")
+                log_message(f"[WARNING] Could not automatically open chart file: {str(os_err)}", force_flush=True)
                 
     except ImportError:
-        log_message("[WARNING] 'matplotlib' library not found. Skipping chart generation.")
+        log_message("[WARNING] 'matplotlib' library not found. Skipping chart generation.", force_flush=True)
     except Exception as e:
-        log_message(f"[WARNING] Failed to generate temperature plot: {str(e)}")
+        log_message(f"[WARNING] Failed to generate temperature plot: {str(e)}", force_flush=True)
 
 def print_final_report(status, cycles_done, elapsed_time, reason=""):
     total_seconds = int(elapsed_time)
     minutes = total_seconds // 60
     seconds = total_seconds % 60
     
-    # Calculate the custom proprietary VRAM performance score index
     if status in ["SUCCESS / STABLE", "STOPPED"] and total_seconds > 0:
         score = int((current_allocated_gb * cycles_done) / elapsed_time * 1000)
     else:
         score = 0
 
-    log_message("\n" + "="*70)
-    log_message("                      === FINAL TEST REPORT ===")
-    log_message("="*70)
-    log_message(f"Status:           {status}")
+    log_message("\n" + "="*70, force_flush=True)
+    log_message("                      === FINAL TEST REPORT ===", force_flush=True)
+    log_message("="*70, force_flush=True)
+    log_message(f"Status:           {status}", force_flush=True)
     if reason:
-        log_message(f"Reason:           {reason}")
-    log_message(f"Cycles Completed: {cycles_done} / {args.cycles if args.cycles > 0 else 'Infinite'}")
-    log_message(f"Total Time:       {minutes}m {seconds}s")
-    log_message(f"Max GPU Temp:     {max_temp_tracked}°C" if max_temp_tracked > 0 else "Max GPU Temp:     N/A")
-    log_message(f"Benchmark Score:  {score} pts (VRAM Throughput Index)" if score > 0 else "Benchmark Score:  0 pts")
-    log_message("-"*70)
+        log_message(f"Reason:           {reason}", force_flush=True)
+    log_message(f"Cycles Completed: {cycles_done} / {args.cycles if args.cycles > 0 else 'Infinite'}", force_flush=True)
+    log_message(f"Total Time:       {minutes}m {seconds}s", force_flush=True)
+    log_message(f"Max GPU Temp:     {max_temp_tracked}°C" if max_temp_tracked > 0 else "Max GPU Temp:     N/A", force_flush=True)
+    log_message(f"Benchmark Score:  {score} pts (VRAM Throughput Index)" if score > 0 else "Benchmark Score:  0 pts", force_flush=True)
+    log_message("-"*70, force_flush=True)
     if status == "SUCCESS / STABLE":
-        log_message("VERDICT: Hardware integrity 100% verified. No data corruption detected.")
+        log_message("VERDICT: Hardware integrity 100% verified. No data corruption detected.", force_flush=True)
     elif status == "STOPPED":
-        log_message("VERDICT: Test interrupted by user. No errors found during the run.")
+        log_message("VERDICT: Test interrupted by user. No errors found during the run.", force_flush=True)
     else:
-        log_message("VERDICT: CRITICAL HARDWARE ERROR OR INSTABILITY DETECTED!")
-    log_message("="*70 + "\n")
+        log_message("VERDICT: CRITICAL HARDWARE ERROR OR INSTABILITY DETECTED!", force_flush=True)
+    log_message("="*70 + "\n", force_flush=True)
 
 def main():
-    global current_allocated_gb
+    global current_allocated_gb, max_temp_tracked
     if not torch.cuda.is_available():
-        log_message("[CRITICAL ERROR] CUDA is not available on this system!")
+        log_message("[CRITICAL ERROR] CUDA is not available on this system!", force_flush=True)
         sys.exit(1)
         
     device_count = torch.cuda.device_count()
     if args.gpu >= device_count:
-        log_message(f"[CRITICAL ERROR] Specified GPU index {args.gpu}, but only {device_count} device(s) found.")
+        log_message(f"[CRITICAL ERROR] Specified GPU index {args.gpu}, but only {device_count} device(s) found.", force_flush=True)
         sys.exit(1)
 
     device = torch.device(f"cuda:{args.gpu}")
@@ -184,12 +182,12 @@ def main():
     
     target_vram_gb = free_mem_gb * args.ratio
     
-    log_message("="*70)
+    log_message("="*70, force_flush=True)
     log_message(f"CUDA VRAM STRESS-TEST & HARDWARE VALIDATOR")
     log_message(f"Target Device: GPU [{args.gpu}] - {gpu_name}")
     log_message(f"Total VRAM: {total_mem_gb:.2f} GB | Currently Free: {free_mem_gb:.2f} GB")
     log_message(f"Allocation Target ({int(args.ratio*100)}% of free space): {target_vram_gb:.2f} GB")
-    log_message("="*70)
+    log_message("="*70, force_flush=True)
 
     chunk_bytes = args.chunk_size * 1024 * 1024
     matrix_dim = int((chunk_bytes / 4) ** 0.5)
@@ -197,7 +195,7 @@ def main():
 
     allocated_blocks = []
 
-    log_message(f"--- PHASE 1: Step-by-Step VRAM Allocation ({args.chunk_size} MB blocks) ---")
+    log_message(f"--- PHASE 1: Step-by-Step VRAM Allocation ({args.chunk_size} MB blocks) ---", force_flush=True)
     try:
         while current_allocated_gb < target_vram_gb:
             block_idx = len(allocated_blocks) + 1
@@ -209,20 +207,20 @@ def main():
             torch.cuda.synchronize(device)
             current_allocated_gb += real_chunk_gb
             log_message(f"-> Verification OK. Total locked memory: {current_allocated_gb:.2f} GB")
-            time.sleep(0.02)
+            time.sleep(0.01)
             
     except torch.cuda.OutOfMemoryError:
-        log_message(f"[OOM] Hit maximum allocation limit at {current_allocated_gb:.2f} GB.")
+        log_message(f"[OOM] Hit maximum allocation limit at {current_allocated_gb:.2f} GB.", force_flush=True)
     except RuntimeError as e:
-        log_message(f"[CUDA CRASH DURING ALLOCATION] {str(e)}")
+        log_message(f"[CUDA CRASH DURING ALLOCATION] {str(e)}", force_flush=True)
         print_final_report("CRASHED", 0, 0, f"Allocation driver crash: {str(e)}")
         sys.exit(1)
 
-    log_message(f"Allocation complete. Holding {current_allocated_gb:.2f} GB on VRAM.")
+    log_message(f"Allocation complete. Holding {current_allocated_gb:.2f} GB on VRAM.", force_flush=True)
     
     slice_size = min(matrix_dim, 4096)
     if len(allocated_blocks) > 0:
-        log_message("Benchmarking GPU performance for execution time estimation...")
+        log_message("Benchmarking GPU performance for execution time estimation...", force_flush=True)
         torch.cuda.synchronize(device)
         t_bench_start = time.time()
         
@@ -234,7 +232,7 @@ def main():
             allocated_blocks[i][:slice_size, :slice_size] = result / (result.std() + 1e-5)
             
         torch.cuda.synchronize(device)
-        single_cycle_time = (time.time() - t_bench_start) + 0.02
+        single_cycle_time = (time.time() - t_bench_start)
         
         if args.cycles > 0:
             est_total_seconds = single_cycle_time * args.cycles
@@ -246,11 +244,11 @@ def main():
     else:
         est_time_str = "N/A (No blocks allocated)"
 
-    log_message("\n" + "="*70)
-    log_message("--- PHASE 2: Tensor Compute Stress-Test & Matrix Math Validation ---")
-    log_message(f"Target Cycles:            {args.cycles if args.cycles > 0 else 'Infinite (Loop mode)'}")
-    log_message(f"Estimated Waiting Time:   {est_time_str}")
-    log_message("="*70 + "\n")
+    log_message("\n" + "="*70, force_flush=True)
+    log_message("--- PHASE 2: Tensor Compute Stress-Test & Matrix Math Validation ---", force_flush=True)
+    log_message(f"Target Cycles:            {args.cycles if args.cycles > 0 else 'Infinite (Loop mode)'}", force_flush=True)
+    log_message(f"Estimated Waiting Time:   {est_time_str}", force_flush=True)
+    log_message("="*70 + "\n", force_flush=True)
     
     start_time = time.time()
     cycle = 0
@@ -269,13 +267,16 @@ def main():
             if args.duration > 0 and elapsed >= args.duration:
                 status = "SUCCESS / STABLE"
                 break
-                
-            current_temp_str = get_gpu_temp()
+            
+            raw_temp = get_gpu_temp_raw()
+            current_temp_str = f"{raw_temp}°C" if raw_temp is not None else "N/A"
+            
+            # Изменено здесь: логируется абсолютно каждый цикл без пропусков
             log_message(f"[Cycle {cycle}] Running matrix calculations... Temp: {current_temp_str}")
             
-            # Record data points for telemetry plotting
-            raw_temp = get_gpu_temp_raw()
             if raw_temp is not None:
+                if raw_temp > max_temp_tracked:
+                    max_temp_tracked = raw_temp
                 time_telemetry.append(elapsed)
                 temp_telemetry.append(raw_temp)
             
@@ -288,7 +289,7 @@ def main():
                 
                 if torch.isnan(result).any() or torch.isinf(result).any():
                     status = "FAILED / DATA CORRUPTION"
-                    log_message(f"[ERROR] DATA CORRUPTION DETECTED in VRAM block {i}!")
+                    log_message(f"[ERROR] DATA CORRUPTION DETECTED in VRAM block {i}!", force_flush=True)
                     generate_plot()
                     print_final_report(status, cycle, time.time() - start_time, "Math validation returned NaN/INF values.")
                     sys.exit(1)
@@ -296,14 +297,13 @@ def main():
                 allocated_blocks[i][:slice_size, :slice_size] = result / (result.std() + 1e-5)
                 
             torch.cuda.synchronize(device)
-            time.sleep(0.02)
 
         generate_plot()
         print_final_report(status, cycle, time.time() - start_time)
 
     except RuntimeError as e:
         status = "CRASHED"
-        log_message(f"\n[ERROR] HARDWARE DRIVER CRASH DETECTED UNDER LOAD! {str(e)}")
+        log_message(f"\n[ERROR] HARDWARE DRIVER CRASH DETECTED UNDER LOAD! {str(e)}", force_flush=True)
         generate_plot()
         print_final_report(status, cycle, time.time() - start_time, f"CUDA Driver error: {str(e)}")
         sys.exit(1)
